@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>星際獵手：20x20 終極防線 (特技超載版)</title>
+    <!-- Tailwind CSS for UI Layout -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for high-tech icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+        
+        body {
+            font-family: 'Share Tech Mono', 'Orbitron', monospace;
+            background-color: #030712;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none; /* 防止 iPad 雙擊縮放及拖曳干擾 */
+        }
+
+        .neon-text-blue {
+            text-shadow: 0 0 5px rgba(59, 130, 246, 0.5), 0 0 15px rgba(59, 130, 246, 0.7);
+        }
+
+        .neon-text-green {
+            text-shadow: 0 0 5px rgba(16, 185, 129, 0.5), 0 0 15px rgba(16, 185, 129, 0.7);
+        }
+
+        .neon-text-pink {
+            text-shadow: 0 0 5px rgba(236, 72, 153, 0.5), 0 0 15px rgba(236, 72, 153, 0.7);
+        }
+
+        .neon-text-purple {
+            text-shadow: 0 0 5px rgba(168, 85, 247, 0.5), 0 0 15px rgba(168, 85, 247, 0.7);
+        }
+
+        .neon-border {
+            box-shadow: 0 0 12px rgba(59, 130, 246, 0.4), inset 0 0 12px rgba(59, 130, 246, 0.4);
+            border: 2px solid rgba(59, 130, 246, 0.6);
+        }
+
+        /* Scanline simulation */
+        .scanlines {
+            position: relative;
+            overflow: hidden;
+        }
+        .scanlines::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.15) 50%);
+            z-index: 10;
+            background-size: 100% 4px;
+            pointer-events: none;
+        }
+
+        /* Skill Cool Down Indicator animation */
+        .cooldown-spin {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="w-screen h-screen flex flex-col items-center justify-between p-2 md:p-4 text-white scanlines select-none">
+
+    <!-- TOP HEADER: Game status -->
+    <header class="w-full max-w-xl flex justify-between items-center bg-gray-900/90 p-3 rounded-lg border border-emerald-500/30 backdrop-blur-md z-20">
+        <div class="flex items-center space-x-3">
+            <span class="text-xs text-emerald-400 font-bold uppercase tracking-wider">LEVEL</span>
+            <span id="level-display" class="text-2xl font-black text-emerald-300 neon-text-green">01</span>
+        </div>
+        <div class="flex-1 px-4">
+            <div class="flex justify-between text-xs mb-1">
+                <span class="text-blue-400">關卡進度</span>
+                <span id="progress-text" class="font-bold text-blue-300">0 / 30</span>
+            </div>
+            <div class="w-full bg-gray-800 rounded-full h-2.5 overflow-hidden border border-blue-500/20">
+                <div id="progress-bar" class="bg-gradient-to-r from-blue-500 to-indigo-500 h-full transition-all duration-300 shadow-[0_0_10px_#3b82f6]" style="width: 0%"></div>
+            </div>
+        </div>
+        <div class="text-right">
+            <div class="text-xs text-pink-400 uppercase tracking-wider">LIVES</div>
+            <div id="lives-container" class="flex space-x-1 justify-end text-pink-500 text-sm">
+                <i class="fas fa-heart"></i>
+                <i class="fas fa-heart"></i>
+                <i class="fas fa-heart"></i>
+            </div>
+        </div>
+    </header>
+
+    <!-- CORE PLAY AREA: 20x20 Grid -->
+    <main class="relative flex-1 w-full max-w-xl my-2 flex items-center justify-center">
+        <!-- Canvas Container -->
+        <div id="canvas-container" class="relative w-full aspect-square max-w-[80vh] bg-black/95 rounded-xl neon-border overflow-hidden flex items-center justify-center">
+            <canvas id="game-canvas" class="w-full h-full block z-10"></canvas>
+            
+            <!-- OVERLAYS (Start, Pause, Victory, Game Over) -->
+            <!-- 1. Start / Rules Overlay -->
+            <div id="start-overlay" class="absolute inset-0 bg-black/95 z-30 flex flex-col justify-between p-6 overflow-y-auto">
+                <div class="my-auto space-y-4">
+                    <div class="text-center">
+                        <h1 class="text-3xl md:text-4xl font-extrabold tracking-widest text-emerald-400 uppercase font-['Orbitron'] neon-text-green mb-1">
+                            星際獵手：超載
+                        </h1>
+                        <p class="text-xs text-blue-400 tracking-widest uppercase font-semibold">20x20 戰術防線與高能特技系統</p>
+                    </div>
+
+                    <div class="bg-gray-900/90 border border-emerald-500/30 rounded-lg p-4 space-y-3 text-sm text-gray-300 text-left">
+                        <h2 class="text-emerald-400 font-bold border-b border-emerald-500/20 pb-2 flex items-center text-base">
+                            <i class="fas fa-satellite-dish mr-2"></i> 戰術指令與三大特技：
+                        </h2>
+                        <ul class="space-y-2 text-xs md:text-sm">
+                            <li class="flex items-start">
+                                <span class="text-emerald-400 mr-2">🛡️</span>
+                                <span><b>等離子防護罩 (按鍵 1)</b>：建立 5 秒的球形力場，完全免疫直接撞擊傷害。</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-purple-400 mr-2">🌀</span>
+                                <span><b>時空衰變場 (按鍵 2)</b>：干涉時間常數，使怪物前進速度減慢 60% 持續 4 秒。</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-pink-400 mr-2">💥</span>
+                                <span><b>電磁脈衝 EMP (按鍵 3)</b>：釋放強光脈衝波，秒殺全螢幕普通怪獸！</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-blue-400 mr-2">✦</span>
+                                <span><b>iPad 直覺拖曳</b>：在螢幕上<b>直接拖曳戰機</b>即可靈活移動，射擊預設為自動開啟。</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-emerald-400 mr-2">✦</span>
+                                <span><b>目標</b>：擊毀 1 隻怪獸得 1 分，在 5 個關卡中每關取得 <b>30 分</b>即可獲勝！</span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
+                        <button id="btn-start" class="flex-1 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-extrabold py-3.5 px-6 rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.4)] transition transform active:scale-95 uppercase tracking-wider font-['Orbitron'] text-lg">
+                            啟動系統 (開始防禦)
+                        </button>
+                    </div>
+                </div>
+                <div class="text-center text-[10px] text-gray-500 mt-2">
+                    IPAD TOUCH ENGINE WITH ABILITIES • SECURE SYSTEM ACTIVE
+                </div>
+            </div>
+
+            <!-- 2. Game Over Overlay -->
+            <div id="gameover-overlay" class="absolute inset-0 bg-black/90 z-30 hidden flex-col justify-center items-center p-6 text-center">
+                <div class="space-y-6">
+                    <div class="text-pink-500 animate-pulse text-6xl">
+                        <i class="fas fa-shield-virus"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-4xl font-extrabold text-pink-500 uppercase tracking-widest neon-text-pink font-['Orbitron']">
+                            防線宣告失守
+                        </h2>
+                        <p class="text-gray-400 text-sm mt-2">戰機防禦護盾已耗盡，星際防線已被攻破...</p>
+                    </div>
+                    <div class="bg-gray-900 border border-pink-500/30 p-4 rounded-lg inline-block">
+                        <p class="text-xs text-gray-400">最終戰報</p>
+                        <p class="text-2xl font-bold text-white mt-1">到達關卡: <span id="final-level" class="text-pink-400">1</span></p>
+                        <p class="text-sm text-gray-300">累計擊落: <span id="final-score" class="text-pink-400">0</span> 隻怪物</p>
+                    </div>
+                    <button id="btn-restart" class="bg-gradient-to-r from-pink-600 to-rose-500 hover:from-pink-500 hover:to-rose-400 text-white font-bold py-3.5 px-8 rounded-lg shadow-[0_0_15px_rgba(244,63,94,0.4)] transition transform active:scale-95 uppercase tracking-wider">
+                        重新部署戰機
+                    </button>
+                </div>
+            </div>
+
+            <!-- 3. Victory Overlay -->
+            <div id="victory-overlay" class="absolute inset-0 bg-black/95 z-30 hidden flex-col justify-center items-center p-6 text-center">
+                <div class="space-y-6">
+                    <div class="text-yellow-400 animate-bounce text-6xl">
+                        <i class="fas fa-crown"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-4xl font-extrabold text-yellow-400 uppercase tracking-widest neon-text-pink font-['Orbitron']" style="text-shadow: 0 0 10px rgba(234, 179, 8, 0.5)">
+                            最終勝利！
+                        </h2>
+                        <p class="text-gray-300 text-sm mt-2">太棒了！你成功的通過了 5 個關卡，成功守衛了銀河系！</p>
+                    </div>
+                    <div class="bg-gray-900 border border-yellow-500/30 p-4 rounded-lg">
+                        <p class="text-xs text-gray-400">星際和平防衛勳章</p>
+                        <p class="text-xl text-yellow-300 font-bold mt-1">完美守衛任務成功</p>
+                    </div>
+                    <button id="btn-restart-victory" class="bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-400 hover:to-amber-500 text-black font-extrabold py-3.5 px-8 rounded-lg shadow-[0_0_15px_rgba(234,179,8,0.4)] transition transform active:scale-95 uppercase tracking-wider">
+                        再次挑戰極限
+                    </button>
+                </div>
+            </div>
+
+            <!-- 4. Next Level Interstitial Overlay -->
+            <div id="nextlevel-overlay" class="absolute inset-0 bg-black/85 z-20 hidden flex-col justify-center items-center p-6 text-center">
+                <div class="space-y-4">
+                    <div class="text-blue-400 text-5xl animate-spin">
+                        <i class="fas fa-sync-alt"></i>
+                    </div>
+                    <h2 class="text-3xl font-bold text-blue-400 uppercase tracking-widest neon-text-blue font-['Orbitron']">
+                        關卡安全！
+                    </h2>
+                    <p class="text-gray-300 text-sm">即將進行空間躍遷...</p>
+                    <p class="text-2xl font-black text-emerald-400 font-['Orbitron']">LEVEL <span id="next-level-num">2</span></p>
+                    <p class="text-xs text-gray-500 animate-pulse">正在充能引擎，準備迎擊更強大的怪獸</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- INTERFACE FOOTER: Abilities, Controls and weapon toggles -->
+    <footer class="w-full max-w-xl flex flex-col space-y-2 z-20">
+        
+        <!-- ⚡ SPECIAL ABILITIES PANEL (Touch to trigger skills!) ⚡ -->
+        <div class="grid grid-cols-3 gap-2 p-2 bg-gray-950/90 rounded-lg border border-purple-500/30 backdrop-blur-md">
+            <!-- Ability 1: Shield -->
+            <button id="skill-shield-btn" class="relative overflow-hidden h-14 bg-blue-950/40 hover:bg-blue-900/50 border border-blue-400/40 rounded-lg flex flex-col items-center justify-center transition active:scale-95">
+                <div id="skill-shield-cooldown" class="absolute inset-0 bg-black/70 flex items-center justify-center font-bold text-blue-400 text-sm z-10 hidden">--</div>
+                <i class="fas fa-shield-alt text-blue-400 text-lg mb-0.5"></i>
+                <span class="text-[10px] text-gray-300 tracking-wider">等離子護盾 [1]</span>
+            </button>
+
+            <!-- Ability 2: Time Warp -->
+            <button id="skill-warp-btn" class="relative overflow-hidden h-14 bg-purple-950/40 hover:bg-purple-900/50 border border-purple-400/40 rounded-lg flex flex-col items-center justify-center transition active:scale-95">
+                <div id="skill-warp-cooldown" class="absolute inset-0 bg-black/70 flex items-center justify-center font-bold text-purple-400 text-sm z-10 hidden">--</div>
+                <i class="fas fa-hourglass-half text-purple-400 text-lg mb-0.5"></i>
+                <span class="text-[10px] text-gray-300 tracking-wider">時空減速 [2]</span>
+            </button>
+
+            <!-- Ability 3: EMP Blast -->
+            <button id="skill-emp-btn" class="relative overflow-hidden h-14 bg-pink-950/40 hover:bg-pink-900/50 border border-pink-400/40 rounded-lg flex flex-col items-center justify-center transition active:scale-95">
+                <div id="skill-emp-cooldown" class="absolute inset-0 bg-black/70 flex items-center justify-center font-bold text-pink-400 text-sm z-10 hidden">--</div>
+                <i class="fas fa-radiation-alt text-pink-400 text-lg mb-0.5 animate-pulse"></i>
+                <span class="text-[10px] text-gray-300 tracking-wider">電磁脈衝 [3]</span>
+            </button>
+        </div>
+
+        <!-- Control utilities bar -->
+        <div class="flex justify-between items-center bg-gray-900/50 p-2 rounded-lg border border-gray-700/30 text-xs">
+            <button id="btn-toggle-shoot" class="flex items-center space-x-2 bg-blue-900/40 hover:bg-blue-800/50 text-blue-300 px-3 py-1.5 rounded-md border border-blue-500/30 transition">
+                <i class="fas fa-bolt text-yellow-400 animate-pulse"></i>
+                <span>自動射擊: <b id="shoot-mode-text">開啟</b></span>
+            </button>
+            <div class="text-[10px] text-gray-400 hidden sm:block">💡 iPad 提示：在畫面上拖曳手指可直接移動</div>
+            <button id="btn-toggle-sound" class="flex items-center space-x-2 bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded-md border border-gray-600/30 transition">
+                <i id="sound-icon" class="fas fa-volume-up"></i>
+                <span>音效: <b id="sound-mode-text">啟用</b></span>
+            </button>
+        </div>
+
+        <!-- Virtual Gamepad for Mobile/Touch -->
+        <div id="mobile-controls" class="grid grid-cols-3 gap-2 p-2 bg-gray-900/40 rounded-xl border border-gray-800">
+            <!-- Left Side: D-pad -->
+            <div class="col-span-2 grid grid-cols-3 gap-1.5 max-w-[240px]">
+                <div></div>
+                <button id="ctrl-up" class="h-12 bg-gray-800/70 active:bg-blue-600/70 border border-blue-500/20 active:border-blue-400 rounded-lg flex items-center justify-center text-blue-400 text-xl transition-all"><i class="fas fa-chevron-up"></i></button>
+                <div></div>
+                
+                <button id="ctrl-left" class="h-12 bg-gray-800/70 active:bg-blue-600/70 border border-blue-500/20 active:border-blue-400 rounded-lg flex items-center justify-center text-blue-400 text-xl transition-all"><i class="fas fa-chevron-left"></i></button>
+                <div class="h-12 bg-gray-900/30 flex items-center justify-center text-gray-500 text-xs font-bold uppercase">PAD</div>
+                <button id="ctrl-right" class="h-12 bg-gray-800/70 active:bg-blue-600/70 border border-blue-500/20 active:border-blue-400 rounded-lg flex items-center justify-center text-blue-400 text-xl transition-all"><i class="fas fa-chevron-right"></i></button>
+                
+                <div></div>
+                <button id="ctrl-down" class="h-12 bg-gray-800/70 active:bg-blue-600/70 border border-blue-500/20 active:border-blue-400 rounded-lg flex items-center justify-center text-blue-400 text-xl transition-all"><i class="fas fa-chevron-down"></i></button>
+                <div></div>
+            </div>
+
+            <!-- Right Side: Action Button -->
+            <div class="col-span-1 flex items-center justify-center">
+                <button id="ctrl-fire" class="w-full h-26 bg-gradient-to-br from-pink-600 to-purple-700 active:from-pink-500 active:to-purple-600 border border-pink-500/30 rounded-xl flex flex-col items-center justify-center text-white font-black shadow-lg transition active:scale-95">
+                    <i class="fas fa-crosshairs text-2xl mb-1 animate-ping"></i>
+                    <span class="text-xs tracking-wider">FIRE</span>
+                </button>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Game Logic & Mechanics -->
+    <script>
+        // ==========================================
+        // 1. GAME SETUP & AUDIO SYNTHESIS SYSTEM
+        // ==========================================
+        let audioCtx = null;
+        let isSoundEnabled = true;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        // Custom Sound Generator using Web Audio API (Clean & High-tech)
+        function playSound(type) {
+            if (!isSoundEnabled) return;
+            initAudio();
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            const now = audioCtx.currentTime;
+
+            switch (type) {
+                case 'shoot': {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(650, now);
+                    osc.frequency.exponentialRampToValueAtTime(120, now + 0.12);
+                    gain.gain.setValueAtTime(0.06, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.12);
+                    break;
+                }
+                case 'explosion': {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(140, now);
+                    osc.frequency.exponentialRampToValueAtTime(20, now + 0.25);
+                    gain.gain.setValueAtTime(0.12, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.25);
+                    break;
+                }
+                case 'levelup': {
+                    const notes = [293.66, 349.23, 440.00, 587.33]; // D4, F4, A4, D5 (Ascending)
+                    notes.forEach((freq, index) => {
+                        const osc = audioCtx.createOscillator();
+                        const gain = audioCtx.createGain();
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(freq, now + index * 0.08);
+                        gain.gain.setValueAtTime(0.08, now + index * 0.08);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + index * 0.08 + 0.2);
+                        osc.connect(gain);
+                        gain.connect(audioCtx.destination);
+                        osc.start(now + index * 0.08);
+                        osc.stop(now + index * 0.08 + 0.2);
+                    });
+                    break;
+                }
+                case 'hurt': {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(90, now);
+                    osc.frequency.setValueAtTime(40, now + 0.12);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.2);
+                    break;
+                }
+                case 'gameover': {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(220, now);
+                    osc.frequency.linearRampToValueAtTime(50, now + 0.6);
+                    gain.gain.setValueAtTime(0.12, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.6);
+                    break;
+                }
+                case 'win': {
+                    const freqs = [523.25, 659.25, 783.99, 1046.50, 1318.51, 1567.98];
+                    freqs.forEach((f, i) => {
+                        const osc = audioCtx.createOscillator();
+                        const gain = audioCtx.createGain();
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(f, now + i * 0.12);
+                        gain.gain.setValueAtTime(0.06, now + i * 0.12);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.35);
+                        osc.connect(gain);
+                        gain.connect(audioCtx.destination);
+                        osc.start(now + i * 0.12);
+                        osc.stop(now + i * 0.12 + 0.35);
+                    });
+                    break;
+                }
+                case 'shield': {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(220, now);
+                    osc.frequency.exponentialRampToValueAtTime(880, now + 0.4);
+                    gain.gain.setValueAtTime(0.1, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.4);
+                    break;
+                }
+                case 'warp': {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(440, now);
+                    osc.frequency.linearRampToValueAtTime(110, now + 0.5);
+                    gain.gain.setValueAtTime(0.12, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.5);
+                    break;
+                }
+                case 'emp': {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(80, now);
+                    osc.frequency.exponentialRampToValueAtTime(800, now + 0.15);
+                    osc.frequency.exponentialRampToValueAtTime(40, now + 0.4);
+                    gain.gain.setValueAtTime(0.18, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.4);
+                    break;
+                }
+            }
+        }
+
+        // ==========================================
+        // 2. CANVAS & RESPONSIVE SETUP
+        // ==========================================
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('canvas-container');
+
+        const GRID_SIZE = 20; // 20x20 Grid
+        let cellSize = 0;
+
+        function resizeCanvas() {
+            const side = Math.min(container.clientWidth, container.clientHeight);
+            canvas.width = side;
+            canvas.height = side;
+            cellSize = side / GRID_SIZE;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // ==========================================
+        // 3. GAME STATE & ENTITIES
+        // ==========================================
+        let gameState = 'START'; // START, PLAYING, LEVEL_UP, GAME_OVER, VICTORY
+        let currentLevel = 1;
+        let pointsInCurrentLevel = 0;
+        let totalScore = 0;
+        const TARGET_POINTS_PER_LEVEL = 30;
+        const MAX_LEVELS = 5;
+        let lives = 3;
+
+        let autoShootEnabled = true;
+
+        // Player structure (Smooth movement inside 20x20 limit)
+        const player = {
+            gridX: 10,
+            gridY: 17,
+            speed: 0.18, // Grid cells per frame (Enhanced for fast action)
+            width: 1.0,
+            height: 1.0,
+            color: '#10b981' // Emerald Neon Green
+        };
+
+        // ⚡ SPECIAL SKILLS MANAGEMENT
+        const skills = {
+            shield: { active: false, lastUsed: 0, cooldown: 12000, duration: 5000 },
+            warp: { active: false, lastUsed: 0, cooldown: 18000, duration: 4000 },
+            emp: { active: false, lastUsed: 0, cooldown: 25000, maxRadius: 16 }
+        };
+
+        // Visual EMP expanding rings
+        let empRings = [];
+
+        // Arrays for bullets, monsters, and explosion particles
+        let bullets = [];
+        let monsters = [];
+        let particles = [];
+
+        // Key states (Keyboard inputs)
+        const keys = {
+            w: false, s: false, a: false, d: false,
+            ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false,
+            Space: false
+        };
+
+        // Spawning intervals
+        let lastSpawnTime = 0;
+        let spawnCooldown = 1500; // ms
+
+        // Auto shooting timer
+        let lastShootTime = 0;
+        let shootCooldown = 220; // ms
+
+        // Mobile / iPad Virtual Controls
+        const activeControls = {
+            up: false, down: false, left: false, right: false, fire: false
+        };
+
+        // ==========================================
+        // 4. EVENT LISTENERS
+        // ==========================================
+        // Keyboard bindings
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                keys.Space = true;
+                e.preventDefault();
+            }
+            // Ability keys: [1], [2], [3]
+            if (e.code === 'Digit1') triggerShield();
+            if (e.code === 'Digit2') triggerTimeWarp();
+            if (e.code === 'Digit3') triggerEMP();
+
+            if (['KeyW', 'KeyS', 'KeyA', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+                if (e.code.startsWith('Key')) {
+                    keys[e.code.substring(3).toLowerCase()] = true;
+                } else {
+                    keys[e.code] = true;
+                }
+                e.preventDefault();
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'Space') keys.Space = false;
+            if (['KeyW', 'KeyS', 'KeyA', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+                if (e.code.startsWith('Key')) {
+                    keys[e.code.substring(3).toLowerCase()] = false;
+                } else {
+                    keys[e.code] = false;
+                }
+            }
+        });
+
+        // 🎯 IPAD TOUCH-DRAG LOGIC (Direct Drag Ship anywhere on Grid)
+        let isDragging = false;
+
+        function handleTouchMove(e) {
+            if (gameState !== 'PLAYING') return;
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const touch = e.touches[0];
+            const touchX = touch.clientX - rect.left;
+            const touchY = touch.clientY - rect.top;
+
+            // Convert raw pixel coordination to 20x20 grid coordinates
+            const targetX = touchX / cellSize;
+            const targetY = touchY / cellSize;
+
+            // Restrict bounds securely between grid indexes 0.5 and 19.5
+            player.gridX = Math.max(0.5, Math.min(19.5, targetX));
+            player.gridY = Math.max(0.5, Math.min(19.5, targetY));
+        }
+
+        canvas.addEventListener('touchstart', (e) => {
+            initAudio();
+            if (gameState === 'PLAYING') {
+                isDragging = true;
+                handleTouchMove(e);
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('touchmove', (e) => {
+            if (isDragging) {
+                handleTouchMove(e);
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', () => {
+            isDragging = false;
+        });
+
+        // Support mouse click dragging on Desktop browser emulator for iPad
+        let isMouseDown = false;
+        canvas.addEventListener('mousedown', (e) => {
+            initAudio();
+            if (gameState === 'PLAYING') {
+                isMouseDown = true;
+                handleMouseMove(e);
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (isMouseDown) {
+                handleMouseMove(e);
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => { isMouseDown = false; });
+        canvas.addEventListener('mouseleave', () => { isMouseDown = false; });
+
+        function handleMouseMove(e) {
+            if (gameState !== 'PLAYING') return;
+            const rect = canvas.getBoundingClientRect();
+            const targetX = (e.clientX - rect.left) / cellSize;
+            const targetY = (e.clientY - rect.top) / cellSize;
+            player.gridX = Math.max(0.5, Math.min(19.5, targetX));
+            player.gridY = Math.max(0.5, Math.min(19.5, targetY));
+        }
+
+        // Skill Button Touch Listeners
+        document.getElementById('skill-shield-btn').addEventListener('click', triggerShield);
+        document.getElementById('skill-warp-btn').addEventListener('click', triggerTimeWarp);
+        document.getElementById('skill-emp-btn').addEventListener('click', triggerEMP);
+
+        // Utility Switch Buttons
+        const toggleShootBtn = document.getElementById('btn-toggle-shoot');
+        const shootModeText = document.getElementById('shoot-mode-text');
+        toggleShootBtn.addEventListener('click', () => {
+            autoShootEnabled = !autoShootEnabled;
+            shootModeText.innerText = autoShootEnabled ? "開啟" : "關閉";
+            playSound('shoot');
+        });
+
+        const toggleSoundBtn = document.getElementById('btn-toggle-sound');
+        const soundModeText = document.getElementById('sound-mode-text');
+        const soundIcon = document.getElementById('sound-icon');
+        toggleSoundBtn.addEventListener('click', () => {
+            isSoundEnabled = !isSoundEnabled;
+            soundModeText.innerText = isSoundEnabled ? "啟用" : "禁用";
+            soundIcon.className = isSoundEnabled ? "fas fa-volume-up" : "fas fa-volume-mute";
+            if (isSoundEnabled) playSound('shoot');
+        });
+
+        // Virtual Button Control Binding for iPad D-pad HUD
+        function setupTouchControl(id, direction) {
+            const btn = document.getElementById(id);
+            const handleStart = (e) => {
+                e.preventDefault();
+                activeControls[direction] = true;
+                initAudio();
+            };
+            const handleEnd = (e) => {
+                e.preventDefault();
+                activeControls[direction] = false;
+            };
+            btn.addEventListener('touchstart', handleStart, {passive: false});
+            btn.addEventListener('touchend', handleEnd, {passive: false});
+            btn.addEventListener('mousedown', handleStart);
+            btn.addEventListener('mouseup', handleEnd);
+            btn.addEventListener('mouseleave', handleEnd);
+        }
+
+        setupTouchControl('ctrl-up', 'up');
+        setupTouchControl('ctrl-down', 'down');
+        setupTouchControl('ctrl-left', 'left');
+        setupTouchControl('ctrl-right', 'right');
+        setupTouchControl('ctrl-fire', 'fire');
+
+        // Overlay Game Actions
+        document.getElementById('btn-start').addEventListener('click', () => {
+            initAudio();
+            startGame();
+        });
+
+        document.getElementById('btn-restart').addEventListener('click', () => {
+            resetGame();
+            startGame();
+        });
+
+        document.getElementById('btn-restart-victory').addEventListener('click', () => {
+            resetGame();
+            startGame();
+        });
+
+        // ==========================================
+        // 5. GAME SYSTEM FUNCTIONS & ABILITIES
+        // ==========================================
+        function startGame() {
+            document.getElementById('start-overlay').style.display = 'none';
+            document.getElementById('gameover-overlay').style.display = 'none';
+            document.getElementById('victory-overlay').style.display = 'none';
+            gameState = 'PLAYING';
+            playSound('levelup');
+        }
+
+        function resetGame() {
+            currentLevel = 1;
+            pointsInCurrentLevel = 0;
+            totalScore = 0;
+            lives = 3;
+            bullets = [];
+            monsters = [];
+            particles = [];
+            empRings = [];
+            player.gridX = 10;
+            player.gridY = 17;
+            
+            // Reset skills
+            skills.shield.active = false;
+            skills.shield.lastUsed = 0;
+            skills.warp.active = false;
+            skills.warp.lastUsed = 0;
+            skills.emp.lastUsed = 0;
+
+            updateUI();
+        }
+
+        function updateUI() {
+            document.getElementById('level-display').innerText = String(currentLevel).padStart(2, '0');
+            document.getElementById('progress-text').innerText = `${pointsInCurrentLevel} / ${TARGET_POINTS_PER_LEVEL}`;
+            const pct = (pointsInCurrentLevel / TARGET_POINTS_PER_LEVEL) * 100;
+            document.getElementById('progress-bar').style.width = `${pct}%`;
+
+            // Setup hearts
+            const hearts = document.getElementById('lives-container');
+            hearts.innerHTML = '';
+            for (let i = 0; i < 3; i++) {
+                const heart = document.createElement('i');
+                if (i < lives) {
+                    heart.className = 'fas fa-heart text-pink-500 shadow-[0_0_5px_#ec4899]';
+                } else {
+                    heart.className = 'far fa-heart text-gray-700';
+                }
+                hearts.appendChild(heart);
+            }
+        }
+
+        // --- SKILL TRIGGERS ---
+        function triggerShield() {
+            if (gameState !== 'PLAYING') return;
+            const now = Date.now();
+            if (now - skills.shield.lastUsed < skills.shield.cooldown) return;
+
+            skills.shield.active = true;
+            skills.shield.lastUsed = now;
+            playSound('shield');
+
+            // Set duration off-timer
+            setTimeout(() => {
+                skills.shield.active = false;
+            }, skills.shield.duration);
+        }
+
+        function triggerTimeWarp() {
+            if (gameState !== 'PLAYING') return;
+            const now = Date.now();
+            if (now - skills.warp.lastUsed < skills.warp.cooldown) return;
+
+            skills.warp.active = true;
+            skills.warp.lastUsed = now;
+            playSound('warp');
+
+            // Set duration off-timer
+            setTimeout(() => {
+                skills.warp.active = false;
+            }, skills.warp.duration);
+        }
+
+        function triggerEMP() {
+            if (gameState !== 'PLAYING') return;
+            const now = Date.now();
+            if (now - skills.emp.lastUsed < skills.emp.cooldown) return;
+
+            skills.emp.lastUsed = now;
+            playSound('emp');
+
+            // Spawn visual expanding EMP ring
+            empRings.push({
+                gridX: player.gridX,
+                gridY: player.gridY,
+                radius: 0.1,
+                maxRadius: skills.emp.maxRadius,
+                speed: 0.4,
+                color: '#ec4899' // Pink Neon
+            });
+
+            // Trigger grid damage check for all monsters currently alive
+            for (let i = monsters.length - 1; i >= 0; i--) {
+                const m = monsters[i];
+                if (m.type !== 'elite') {
+                    // Instantly vaporize common monsters
+                    createExplosion(m.gridX, m.gridY, m.color);
+                    monsters.splice(i, 1);
+                    pointsInCurrentLevel++;
+                    totalScore++;
+                } else {
+                    // Elite takes severe heavy damage (removes shield/reduces HP)
+                    m.hp -= 2;
+                    createExplosion(m.gridX, m.gridY, '#eab308');
+                    if (m.hp <= 0) {
+                        monsters.splice(i, 1);
+                        pointsInCurrentLevel++;
+                        totalScore++;
+                    }
+                }
+            }
+
+            updateUI();
+            checkLevelUp();
+        }
+
+        // Particle System
+        function createExplosion(gridX, gridY, color) {
+            for (let i = 0; i < 15; i++) {
+                particles.push({
+                    gridX: gridX,
+                    gridY: gridY,
+                    vx: (Math.random() - 0.5) * 0.25,
+                    vy: (Math.random() - 0.5) * 0.25,
+                    life: 1.0,
+                    decay: 0.02 + Math.random() * 0.03,
+                    color: color
+                });
+            }
+        }
+
+        // ==========================================
+        // 6. SPAWN & ENEMY LOGIC PER LEVEL
+        // ==========================================
+        function spawnMonster() {
+            let monsterSpeed = 0.03 + (currentLevel * 0.015);
+            let color = '#3b82f6'; // Level 1 Blue
+            let type = 'normal';
+            let hp = 1;
+
+            if (currentLevel === 2) {
+                color = '#a855f7'; // Level 2 Purple
+                monsterSpeed = 0.055;
+            } else if (currentLevel === 3) {
+                color = '#f97316'; // Level 3 Orange - Wave zig-zag movement
+                type = 'zigzag';
+                monsterSpeed = 0.05;
+            } else if (currentLevel === 4) {
+                color = '#ef4444'; // Level 4 Red - Ultra fast speed
+                type = 'speedy';
+                monsterSpeed = 0.085;
+            } else if (currentLevel === 5) {
+                color = '#eab308'; // Level 5 Yellow - Elite Guard, 2 Hits Required
+                type = 'elite';
+                hp = 2;
+                monsterSpeed = 0.055;
+            }
+
+            // Spawn at random cell index on horizontal plane
+            const gridX = Math.floor(Math.random() * 20);
+            
+            monsters.push({
+                gridX: gridX + 0.5,
+                gridY: -0.5, // Start slightly above the top grid boundary
+                speed: monsterSpeed,
+                width: 0.85,
+                height: 0.85,
+                color: color,
+                type: type,
+                hp: hp,
+                initialHP: hp,
+                sinOffset: Math.random() * Math.PI * 2
+            });
+        }
+
+        // ==========================================
+        // 7. LEVEL COMPLETED & WIN LOGIC
+        // ==========================================
+        function checkLevelUp() {
+            if (pointsInCurrentLevel >= TARGET_POINTS_PER_LEVEL) {
+                if (currentLevel < MAX_LEVELS) {
+                    currentLevel++;
+                    pointsInCurrentLevel = 0;
+                    bullets = [];
+                    monsters = [];
+                    triggerNextLevelTransition();
+                } else {
+                    // Final Game Completed!
+                    gameState = 'VICTORY';
+                    playSound('win');
+                    document.getElementById('victory-overlay').style.display = 'flex';
+                }
+            }
+        }
+
+        function triggerNextLevelTransition() {
+            gameState = 'LEVEL_UP';
+            playSound('levelup');
+            document.getElementById('next-level-num').innerText = currentLevel;
+            document.getElementById('nextlevel-overlay').style.display = 'flex';
+            updateUI();
+
+            setTimeout(() => {
+                document.getElementById('nextlevel-overlay').style.display = 'none';
+                gameState = 'PLAYING';
+            }, 2000);
+        }
+
+        function handlePlayerDamage() {
+            // If plasma shield is active, block damage entirely!
+            if (skills.shield.active) {
+                playSound('shield');
+                return;
+            }
+
+            lives--;
+            playSound('hurt');
+            updateUI();
+            
+            // Neon Damage warning flash effect
+            ctx.fillStyle = 'rgba(236, 72, 153, 0.25)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (lives <= 0) {
+                gameState = 'GAME_OVER';
+                playSound('gameover');
+                document.getElementById('final-level').innerText = currentLevel;
+                document.getElementById('final-score').innerText = totalScore;
+                document.getElementById('gameover-overlay').style.display = 'flex';
+            }
+        }
+
+        // ==========================================
+        // 8. UPDATE LOOP
+        // ==========================================
+        function update(now) {
+            // Update UI Cool Down overlays
+            const currentTime = Date.now();
+            
+            // Shield CD UI Update
+            const shieldElapsed = currentTime - skills.shield.lastUsed;
+            const shieldCDElement = document.getElementById('skill-shield-cooldown');
+            if (shieldElapsed < skills.shield.cooldown) {
+                shieldCDElement.classList.remove('hidden');
+                shieldCDElement.innerText = Math.ceil((skills.shield.cooldown - shieldElapsed) / 1000) + 's';
+            } else {
+                shieldCDElement.classList.add('hidden');
+            }
+
+            // Warp CD UI Update
+            const warpElapsed = currentTime - skills.warp.lastUsed;
+            const warpCDElement = document.getElementById('skill-warp-cooldown');
+            if (warpElapsed < skills.warp.cooldown) {
+                warpCDElement.classList.remove('hidden');
+                warpCDElement.innerText = Math.ceil((skills.warp.cooldown - warpElapsed) / 1000) + 's';
+            } else {
+                warpCDElement.classList.add('hidden');
+            }
+
+            // EMP CD UI Update
+            const empElapsed = currentTime - skills.emp.lastUsed;
+            const empCDElement = document.getElementById('skill-emp-cooldown');
+            if (empElapsed < skills.emp.cooldown) {
+                empCDElement.classList.remove('hidden');
+                empCDElement.innerText = Math.ceil((skills.emp.cooldown - empElapsed) / 1000) + 's';
+            } else {
+                empCDElement.classList.add('hidden');
+            }
+
+            if (gameState !== 'PLAYING') return;
+
+            // 8.1. Handle Keyboard Controls / Virtual D-pad Movement
+            let dx = 0;
+            let dy = 0;
+
+            if (keys.a || keys.ArrowLeft || activeControls.left) dx = -1;
+            if (keys.d || keys.ArrowRight || activeControls.right) dx = 1;
+            if (keys.w || keys.ArrowUp || activeControls.up) dy = -1;
+            if (keys.s || keys.ArrowDown || activeControls.down) dy = 1;
+
+            if (dx !== 0 || dy !== 0) {
+                player.gridX += dx * player.speed;
+                player.gridY += dy * player.speed;
+
+                // Bind strictly to grid boundaries
+                player.gridX = Math.max(0.5, Math.min(19.5, player.gridX));
+                player.gridY = Math.max(0.5, Math.min(19.5, player.gridY));
+            }
+
+            // 8.2. Laser Gun Firing Mechanics
+            const isFiring = keys.Space || activeControls.fire || autoShootEnabled;
+            if (isFiring && now - lastShootTime > shootCooldown) {
+                bullets.push({
+                    gridX: player.gridX,
+                    gridY: player.gridY - 0.6,
+                    speed: 0.32,
+                    width: 0.18,
+                    height: 0.6,
+                    color: '#60a5fa' // Neon sky-blue laser
+                });
+                playSound('shoot');
+                lastShootTime = now;
+            }
+
+            // 8.3. Laser Bullet movement
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const b = bullets[i];
+                b.gridY -= b.speed;
+                if (b.gridY < 0) {
+                    bullets.splice(i, 1);
+                }
+            }
+
+            // 8.4. Level-based Spawn Controller
+            spawnCooldown = Math.max(450, 1600 - (currentLevel * 250));
+            if (now - lastSpawnTime > spawnCooldown) {
+                spawnMonster();
+                lastSpawnTime = now;
+            }
+
+            // 8.5. Enemy Monsters Mechanics (Affected by Time Warp)
+            const speedMultiplier = skills.warp.active ? 0.4 : 1.0;
+
+            for (let i = monsters.length - 1; i >= 0; i--) {
+                const m = monsters[i];
+
+                if (m.type === 'zigzag') {
+                    m.gridY += m.speed * speedMultiplier;
+                    m.gridX += Math.sin(m.gridY * 1.5 + m.sinOffset) * 0.08 * speedMultiplier;
+                } else if (m.type === 'speedy') {
+                    m.gridY += m.speed * 1.25 * speedMultiplier;
+                } else {
+                    m.gridY += m.speed * speedMultiplier;
+                }
+
+                // Prevent going beyond vertical grid walls
+                m.gridX = Math.max(0.5, Math.min(19.5, m.gridX));
+
+                // Breach check (Monster passes below bottom row)
+                if (m.gridY > GRID_SIZE) {
+                    monsters.splice(i, 1);
+                    handlePlayerDamage();
+                    continue;
+                }
+
+                // Spaceship collision with monster (AABB close range)
+                const distToPlayer = Math.hypot(m.gridX - player.gridX, m.gridY - player.gridY);
+                if (distToPlayer < 0.95) {
+                    createExplosion(m.gridX, m.gridY, m.color);
+                    createExplosion(player.gridX, player.gridY, '#ef4444');
+                    monsters.splice(i, 1);
+                    handlePlayerDamage();
+                    continue;
+                }
+            }
+
+            // 8.6. Collision detection (Bullet hit monster)
+            for (let bIdx = bullets.length - 1; bIdx >= 0; bIdx--) {
+                const b = bullets[bIdx];
+
+                for (let mIdx = monsters.length - 1; mIdx >= 0; mIdx--) {
+                    const m = monsters[mIdx];
+
+                    const dx = Math.abs(b.gridX - m.gridX);
+                    const dy = Math.abs(b.gridY - m.gridY);
+
+                    // AABB Grid Cell size bounds check
+                    if (dx < 0.65 && dy < 0.75) {
+                        bullets.splice(bIdx, 1);
+                        m.hp--;
+                        createExplosion(b.gridX, b.gridY, '#93c5fd');
+
+                        if (m.hp <= 0) {
+                            createExplosion(m.gridX, m.gridY, m.color);
+                            monsters.splice(mIdx, 1);
+                            playSound('explosion');
+
+                            pointsInCurrentLevel++;
+                            totalScore++;
+                            updateUI();
+                            checkLevelUp();
+                        } else {
+                            playSound('hurt');
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // 8.7. Particle Explosion Decay
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.gridX += p.vx;
+                p.gridY += p.vy;
+                p.life -= p.decay;
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+
+            // 8.8. EMP Shockwave Expansion Update
+            for (let i = empRings.length - 1; i >= 0; i--) {
+                const r = empRings[i];
+                r.radius += r.speed;
+                if (r.radius > r.maxRadius) {
+                    empRings.splice(i, 1);
+                }
+            }
+        }
+
+        // ==========================================
+        // 9. RENDER LOOP
+        // ==========================================
+        function draw() {
+            // Dark futuristic background fill
+            ctx.fillStyle = '#030712';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 9.1. Cyberpunk 20x20 Grid Drawing (Altered by Time Warp skill state!)
+            let gridColor = 'rgba(16, 185, 129, 0.08)'; // Default Tech-emerald
+            if (skills.warp.active) {
+                gridColor = 'rgba(168, 85, 247, 0.18)'; // Pulsing Magenta Purple when Time Warped
+            }
+            
+            ctx.strokeStyle = gridColor;
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= GRID_SIZE; i++) {
+                // Verticals
+                ctx.beginPath();
+                ctx.moveTo(i * cellSize, 0);
+                ctx.lineTo(i * cellSize, canvas.height);
+                ctx.stroke();
+
+                // Horizontals
+                ctx.beginPath();
+                ctx.moveTo(0, i * cellSize);
+                ctx.lineTo(canvas.width, i * cellSize);
+                ctx.stroke();
+            }
+
+            // High-tech subtle frame border
+            ctx.strokeStyle = skills.warp.active ? 'rgba(168, 85, 247, 0.4)' : 'rgba(59, 130, 246, 0.2)';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(0, 0, canvas.width, canvas.height);
+
+            // Draw objects if playing
+            if (gameState === 'PLAYING' || gameState === 'LEVEL_UP') {
+                
+                // 9.2. Explosion Particles
+                particles.forEach(p => {
+                    ctx.save();
+                    ctx.globalAlpha = p.life;
+                    ctx.fillStyle = p.color;
+                    const radius = (cellSize * 0.14) * p.life;
+                    ctx.beginPath();
+                    ctx.arc(p.gridX * cellSize, p.gridY * cellSize, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                });
+
+                // 9.3. Neon Laser Bullets
+                bullets.forEach(b => {
+                    ctx.save();
+                    ctx.fillStyle = b.color;
+                    ctx.shadowColor = b.color;
+                    ctx.shadowBlur = 8;
+                    const w = b.width * cellSize;
+                    const h = b.height * cellSize;
+                    ctx.fillRect(
+                        b.gridX * cellSize - w/2, 
+                        b.gridY * cellSize - h/2, 
+                        w, h
+                    );
+                    ctx.restore();
+                });
+
+                // 9.4. Grid Monsters with custom tech designs
+                monsters.forEach(m => {
+                    const x = m.gridX * cellSize;
+                    const y = m.gridY * cellSize;
+                    const size = m.width * cellSize;
+
+                    ctx.save();
+                    ctx.translate(x, y);
+
+                    ctx.shadowColor = m.color;
+                    ctx.shadowBlur = 10;
+                    ctx.fillStyle = m.color;
+
+                    if (m.type === 'zigzag') {
+                        // Diamond Neon Shape
+                        ctx.beginPath();
+                        ctx.moveTo(0, -size/2);
+                        ctx.lineTo(size/2, 0);
+                        ctx.lineTo(0, size/2);
+                        ctx.lineTo(-size/2, 0);
+                        ctx.closePath();
+                        ctx.fill();
+                    } else if (m.type === 'speedy') {
+                        // Razor Swift Arrow
+                        ctx.beginPath();
+                        ctx.moveTo(0, size/2);
+                        ctx.lineTo(size/2, -size/2);
+                        ctx.lineTo(0, -size/4);
+                        ctx.lineTo(-size/2, -size/2);
+                        ctx.closePath();
+                        ctx.fill();
+                    } else if (m.type === 'elite') {
+                        // Tech-shield octagon
+                        ctx.beginPath();
+                        for (let k = 0; k < 8; k++) {
+                            const angle = (k * Math.PI) / 4;
+                            ctx.lineTo(Math.cos(angle) * size/2, Math.sin(angle) * size/2);
+                        }
+                        ctx.closePath();
+                        ctx.fill();
+
+                        // Inner safety shield glow
+                        ctx.strokeStyle = '#ffffff';
+                        ctx.lineWidth = 2;
+                        ctx.strokeRect(-size/4, -size/4, size/2, size/2);
+                    } else {
+                        // Level 1: Geometric Crab Core
+                        ctx.fillRect(-size/2, -size/2, size, size);
+                        ctx.fillRect(-size * 0.7, -size * 0.15, size * 0.2, size * 0.3);
+                        ctx.fillRect(size * 0.5, -size * 0.15, size * 0.2, size * 0.3);
+                    }
+
+                    // Elite health status display
+                    if (m.hp < m.initialHP) {
+                        const pct = m.hp / m.initialHP;
+                        ctx.fillStyle = 'rgba(255, 0, 0, 0.4)';
+                        ctx.fillRect(-size/2, -size * 0.7, size, 4);
+                        ctx.fillStyle = '#10b981';
+                        ctx.fillRect(-size/2, -size * 0.7, size * pct, 4);
+                    }
+
+                    ctx.restore();
+                });
+
+                // 9.5. Player Ship Interceptor
+                ctx.save();
+                const px = player.gridX * cellSize;
+                const py = player.gridY * cellSize;
+                const pSize = player.width * cellSize;
+
+                ctx.translate(px, py);
+                ctx.shadowColor = player.color;
+                ctx.shadowBlur = 12;
+
+                // Tactical Delta shape
+                ctx.fillStyle = player.color;
+                ctx.beginPath();
+                ctx.moveTo(0, -pSize/2);
+                ctx.lineTo(pSize/2, pSize/3);
+                ctx.lineTo(pSize/4, pSize/2);
+                ctx.lineTo(-pSize/4, pSize/2);
+                ctx.lineTo(-pSize/2, pSize/3);
+                ctx.closePath();
+                ctx.fill();
+
+                // Electric blue cockpit glass
+                ctx.fillStyle = '#60a5fa';
+                ctx.beginPath();
+                ctx.moveTo(0, -pSize/3);
+                ctx.lineTo(pSize/5, pSize/12);
+                ctx.lineTo(-pSize/5, pSize/12);
+                ctx.closePath();
+                ctx.fill();
+
+                // Energetic rocket flame trail
+                if (Math.random() > 0.3) {
+                    ctx.fillStyle = '#f59e0b'; // Amber fire
+                    ctx.beginPath();
+                    ctx.moveTo(-pSize/6, pSize/2);
+                    ctx.lineTo(0, pSize * 0.85);
+                    ctx.lineTo(pSize/6, pSize/2);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+
+                // 🛡️ Draw Active Plasma Shield Circle 🛡️
+                if (skills.shield.active) {
+                    ctx.strokeStyle = '#38bdf8'; // Sky light blue
+                    ctx.lineWidth = 3.5;
+                    ctx.shadowColor = '#0ea5e9';
+                    ctx.shadowBlur = 20;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, pSize * 0.95, 0, Math.PI * 2);
+                    ctx.stroke();
+
+                    // Optional inner glow pulsing line
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, pSize * 0.8, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+
+                ctx.restore();
+
+                // 9.6. Draw EMP expanding shockwave rings on canvas
+                empRings.forEach(r => {
+                    ctx.save();
+                    ctx.strokeStyle = r.color;
+                    ctx.lineWidth = 4;
+                    ctx.shadowColor = r.color;
+                    ctx.shadowBlur = 25;
+                    ctx.globalAlpha = 1 - (r.radius / r.maxRadius);
+                    ctx.beginPath();
+                    ctx.arc(r.gridX * cellSize, r.gridY * cellSize, r.radius * cellSize, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.restore();
+                });
+            }
+        }
+
+        // ==========================================
+        // 10. SYSTEM DRIVER ENGINE LOOP
+        // ==========================================
+        function loop(timestamp) {
+            update(timestamp);
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        // Bootstrap on screen load
+        updateUI();
+        requestAnimationFrame(loop);
+    </script>
+</body>
+</html>
